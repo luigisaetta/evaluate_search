@@ -2,6 +2,7 @@
 chunk utils
 """
 
+from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from utils import remove_path_from_ref, get_console_logger
@@ -71,3 +72,26 @@ def load_and_split_pdf(book_path, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVE
     logger.info("Successfully loaded and split %d chunks from %s", len(docs), book_path)
 
     return docs
+
+
+def generate_chunks_with_metadata(
+    input_dir: str,
+    file_pattern: str = "*.pdf",
+    chunk_size: int = CHUNK_SIZE,
+    chunk_overlap: int = CHUNK_OVERLAP,
+):
+    """
+    Read all the podf from the dir and chunk
+    """
+    chunks = []
+    for filepath in Path(input_dir).rglob(file_pattern):
+        new_docs = load_and_split_pdf(
+            str(filepath), chunk_size=chunk_size, chunk_overlap=chunk_overlap
+        )
+        chunks.extend(new_docs)
+
+    for i, doc in enumerate(chunks):
+        # chunks are numberd starting by 1
+        doc.metadata["node_id"] = f"{i+1}"
+
+    return chunks

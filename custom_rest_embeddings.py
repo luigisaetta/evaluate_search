@@ -5,6 +5,7 @@ License: MIT
 """
 
 from typing import List
+from tqdm import tqdm
 from langchain_core.embeddings import Embeddings
 import requests
 from utils import get_console_logger
@@ -83,7 +84,21 @@ class CustomRESTEmbeddings(Embeddings):
 
         all_embeddings: List[List[float]] = []
 
-        for i in range(0, len(texts), self.batch_size):
+        # this is for tqdm (and to disable it)
+        total_batches = (len(texts) + self.batch_size - 1) // self.batch_size
+
+        disable = False
+        if total_batches <= 1:
+            # no need for progress bar
+            disable = True
+
+        for i in tqdm(
+            range(0, len(texts), self.batch_size),
+            total=total_batches,
+            desc="Processing batches",
+            # progress bar only if needed
+            disable=disable,
+        ):
             batch = texts[i : i + self.batch_size]
             # process a single batch
             if self.model in MATRIOSKA_MODELS:
@@ -102,6 +117,9 @@ class CustomRESTEmbeddings(Embeddings):
                     "truncate": truncate,
                     "dimensions": self.dimensions,
                 }
+
+            if DEBUG:
+                logger.info("API URL: %s", self.api_url)
 
             resp = requests.post(
                 self.api_url,

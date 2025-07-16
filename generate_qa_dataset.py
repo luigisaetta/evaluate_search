@@ -8,7 +8,6 @@ The output is saved as a JSONL file (one JSON object per line).
 import time
 import json
 import argparse
-from pathlib import Path
 from tqdm import tqdm
 
 from langchain.prompts import PromptTemplate
@@ -17,9 +16,9 @@ from langchain_core.runnables import RunnableLambda
 
 from oci_models import get_llm
 from prompts import QA_PROMPT_TEMPLATE
-from chunk_utils import load_and_split_pdf
+from chunk_utils import generate_chunks_with_metadata
 from utils import get_console_logger
-from config import CHUNK_SIZE, CHUNK_OVERLAP, QA_MODEL_ID
+from config import QA_MODEL_ID
 
 # configs
 FILE_PATTERN = "*.pdf"
@@ -58,16 +57,7 @@ def process_directory(input_dir, output_path):
     Process all the pdf in the provided directory
     """
     # Load and chunk documents
-    chunks = []
-    for filepath in Path(input_dir).rglob(FILE_PATTERN):
-        new_docs = load_and_split_pdf(
-            str(filepath), chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
-        )
-        chunks.extend(new_docs)
-
-    for i, doc in enumerate(chunks):
-        # chunks are numberd starting by 1
-        doc.metadata["node_id"] = f"{i+1}"
+    chunks = generate_chunks_with_metadata(input_dir)
 
     # Generate Q&A using LLM
     with open(output_path, "w", encoding="utf-8") as f:
@@ -77,7 +67,7 @@ def process_directory(input_dir, output_path):
             time.sleep(1)
 
             try:
-                # if we fail tp process one, go to next chunk
+                # if we fail to process one, go to next chunk
                 response = chain.invoke(doc)
                 q, a = parse_qa(response)
 

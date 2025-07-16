@@ -5,6 +5,7 @@ factory to get easy access to OCI GenAI models
 """
 
 from langchain_community.chat_models import ChatOCIGenAI
+from langchain_community.embeddings import OCIGenAIEmbeddings
 from custom_rest_embeddings import CustomRESTEmbeddings
 from config import AUTH, DEFAULT_MODEL_ID, DEFAULT_TEMPERATURE, MAX_TOKENS, ENDPOINT
 
@@ -62,10 +63,19 @@ def get_llm(
     return llm
 
 
-def get_embedding_model(model_url: str, model_id: str):
+def get_embedding_model(model_type: str, model_id: str, model_url: str = None):
     """
     Return a wrapper for the embedding model
     """
-    embed_model = CustomRESTEmbeddings(model_url, model_id)
+    embed_model = None
+    if model_type == "NVIDIA":
+        embed_model = CustomRESTEmbeddings(api_url=model_url, model=model_id)
+    if model_type == "OCI":
+        embed_model = OCIGenAIEmbeddings(
+            auth_type=AUTH,
+            model_id=model_id,
+            service_endpoint=ENDPOINT,
+            compartment_id=COMPARTMENT_ID,
+        )
 
     return embed_model

@@ -11,8 +11,13 @@ from tqdm import tqdm
 from langchain_community.vectorstores import FAISS
 
 from oci_models import get_embedding_model
-from chunk_utils import load_and_split_pdf
-from config import EMBED_MODEL_URL, EMBED_MODEL_ID, CHUNK_OVERLAP, CHUNK_SIZE, K
+from chunk_utils import generate_chunks_with_metadata
+from config import EMBED_MODEL_TYPE, EMBED_MODEL_ID, K
+
+if EMBED_MODEL_TYPE == "NVIDIA":
+    from config import EMBED_MODEL_URL
+else:
+    EMBED_MODEL_URL = None
 
 FILE_PATTERN = "*.pdf"  # pattern to match your pdf files
 
@@ -75,26 +80,26 @@ def read_jsonl_lines(_file_path: Path) -> Iterator[Dict[str, str]]:
 
 if __name__ == "__main__":
 
-    QA_DATASET = "./qa_dataset/dataset1.jsonl"
     # dir containing the corpus of docs
     PDF_DIR = "./input_pdf"
+    QA_DATASET = "./qa_dataset/dataset1.jsonl"
     input_qa_dataset = Path(QA_DATASET)
 
-    embed_model = get_embedding_model(EMBED_MODEL_URL, EMBED_MODEL_ID)
+    embed_model = get_embedding_model(
+        model_type=EMBED_MODEL_TYPE, model_id=EMBED_MODEL_ID, model_url=EMBED_MODEL_URL
+    )
 
-    # we need to chunk the corpis in exactly the same way we have done when creating qa_dataset
-    chunks = []
-    for filepath in Path(PDF_DIR).rglob(FILE_PATTERN):
-        new_docs = load_and_split_pdf(
-            str(filepath), chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
-        )
-        chunks.extend(new_docs)
-
-    for i, doc in enumerate(chunks):
-        # chunks are numberd starting by 1
-        doc.metadata["node_id"] = f"{i+1}"
+    print("")
+    print(f"Evaluating model {EMBED_MODEL_ID} on dataset {QA_DATASET}...")
+    print("")
+    # we need to chunk the corpus in exactly the same way we have done when creating qa_dataset
+    chunks = generate_chunks_with_metadata(PDF_DIR)
 
     # loading in VS and embedding
+    print("")
+    print("Loading FAISS in-memory vector store..")
+    print("")
+
     faiss_store = FAISS.from_documents(
         documents=chunks,
         embedding=embed_model,
@@ -118,6 +123,7 @@ if __name__ == "__main__":
 
         # here we do the search
         retrieved_docs = retriever.invoke(question)
+        # identify the chunks retrieved
         retrieved_ids = [doc.metadata["node_id"] for doc in retrieved_docs]
 
         # Compute metrics for this query
